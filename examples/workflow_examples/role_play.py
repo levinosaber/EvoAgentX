@@ -138,6 +138,9 @@ async def main():
     workflow = WorkFlow(graph=graph, llm=llm, agent_manager=AgentManager(agents=agents))
 
     try:
+        # save workflow
+        graph.save_module(path=workflow_save_path)
+        print(f"\n✅ workflow graph saved to {workflow_save_path}")
         print("\n📋 start to execute the workflow")
         result = await workflow.async_execute(inputs=character_profile_inputs_example())
         print(f"\n✅ workflow executed successfully!")
