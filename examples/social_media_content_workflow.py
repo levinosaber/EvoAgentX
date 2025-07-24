@@ -3,9 +3,9 @@ from dotenv import load_dotenv
 from evoagentx.workflow import WorkFlow, WorkFlowGraph
 from evoagentx.workflow.workflow_graph import WorkFlowNode, WorkFlowEdge
 from evoagentx.agents import CustomizeAgent
-from evoagentx.prompts import StringTemplate
+from evoagentx.prompts import StringTemplate, ChatTemplate
 from evoagentx.models import OpenAILLMConfig
-from evoagentx.tools.browser_use import BrowserUseToolkit
+from evoagentx.tools.browser_tool import BrowserToolkit
 from evoagentx.tools.image_analysis import ImageAnalysisTool
 from evoagentx.tools.flux_image_generation import FluxImageGenerationTool
 
@@ -31,49 +31,39 @@ def create_browser_research_agent():
     """
     
     # 创建工具
-    browser_toolkit = BrowserUseToolkit(
-        model="gpt-4o-mini",
-        api_key=OPENAI_API_KEY,
-        browser_type="chromium",
-        headless=False
+    browser_toolkit = BrowserToolkit(
+        browser_type="chrome",
+        headless=False,
+        timeout=10
     )
     browser_tools = browser_toolkit.get_tools()
     
-    # 添加图片分析工具
-    image_analysis_tool = ImageAnalysisTool(
-        api_key=OPENROUTER_API_KEY, 
-        model="openai/gpt-4o-mini"
-    )
+    # 添加图片分析工具（如果有API密钥）
+    all_tools = browser_tools.copy()
     
-    # 合并工具
-    all_tools = browser_tools + [image_analysis_tool]
+    if OPENROUTER_API_KEY:
+        image_analysis_tool = ImageAnalysisTool(
+            api_key=OPENROUTER_API_KEY, 
+            model="openai/gpt-4o-mini"
+        )
+        all_tools.append(image_analysis_tool)
+        print("✅ 图片分析工具已启用")
+    else:
+        print("⚠️  图片分析工具未启用（需要OPENROUTER_API_KEY）")
     
     research_agent = CustomizeAgent(
         name="BrowserResearchAgent",
         description="Web research agent with browser automation and image analysis capabilities",
-        prompt_template=StringTemplate(
-            instruction="""You are a professional web research assistant with both browser automation and image analysis capabilities.
-
-Research Topic: {topic}
-
-Please execute the following tasks:
-1. Use browser tools to visit relevant websites (social media, news sites, forums)
-2. Search for trending information related to the topic
-3. If you encounter important images, use image analysis tool to understand their content
-4. Collect comprehensive information including:
-   - Current trending topics and hashtags
-   - Popular discussions and opinions
-   - Visual content insights (from image analysis)
-   - Statistical data and metrics
-   - User engagement patterns
-
-5. Organize all findings into a structured research report
-
-Requirements:
-- Focus on social media trends and viral content
-- Analyze both text and visual information
-- Provide insights useful for content creation
-- Include current engagement metrics when available"""
+        prompt_template=ChatTemplate(
+            instruction="You are a professional web research assistant specializing in social media content research. Your goal is to gather comprehensive information about trending topics using browser automation tools.",
+            context="You have access to browser automation tools (navigate, click, input text, screenshot) and optional image analysis capabilities. Use these systematically to research current trends and popular content.",
+            constraints=[
+                "Focus on recent and trending information",
+                "Gather data from multiple reliable sources",
+                "Include visual content insights when possible",
+                "Organize findings for content creation use",
+                "Prioritize social media platforms and viral content"
+            ]
         ),
         llm_config=llm_config,
         inputs=[
@@ -96,39 +86,24 @@ def create_content_generation_agent():
     content_agent = CustomizeAgent(
         name="ContentGenerationAgent", 
         description="Social media content creation specialist",
-        prompt_template=StringTemplate(
-            instruction="""You are a social media content creation expert. Create engaging posts based on research data.
-
-Research Information: {research_info}
-Content Style: {style}
-Target Platform: {platform}
-
-Please create compelling social media content with:
-
-1. **Hook**: Start with an attention-grabbing opening
-2. **Main Content**: 
-   - Use trending insights from research
-   - Include relevant data points
-   - Tell a story or share valuable information
-   - Match the specified style (professional, casual, humorous, etc.)
-3. **Engagement Elements**:
-   - Ask questions to encourage interaction
-   - Include relevant hashtags
-   - Add call-to-action
-4. **Platform Optimization**:
-   - Adjust length for platform requirements
-   - Use platform-specific features and formatting
-
-Output Format:
-- Main post text
-- Suggested hashtags
-- Engagement strategy notes
-
-Requirements:
-- Content must be original and engaging
-- Use insights from the research data
-- Optimize for the specified platform
-- Match the requested style and tone"""
+        prompt_template=ChatTemplate(
+            instruction="You are an expert social media content creator who transforms research insights into engaging, viral-worthy posts.",
+            context="You specialize in creating platform-specific content that drives engagement. You understand current social media trends, algorithm preferences, and audience psychology.",
+            constraints=[
+                "Content must be original and authentic",
+                "Match the specified style and platform requirements",
+                "Include engaging hooks and clear calls-to-action",
+                "Incorporate trending insights from research data",
+                "Optimize for maximum engagement and shareability"
+            ],
+            demonstrations=[
+                {
+                    "research_info": "AI tools gaining popularity among professionals for productivity",
+                    "style": "professional",
+                    "platform": "LinkedIn",
+                    "post_content": "🚀 The productivity revolution is here! New data shows 73% of professionals are now using AI tools daily.\n\nKey insights:\n• 40% faster task completion\n• Reduced burnout levels\n• Enhanced creativity\n\nWhich AI tool has transformed your workflow? Share your experience below! 👇\n\n#AI #Productivity #FutureOfWork #Innovation"
+                }
+            ]
         ),
         llm_config=llm_config,
         inputs=[
@@ -158,30 +133,24 @@ def create_image_generation_agent():
     image_agent = CustomizeAgent(
         name="ImageGenerationAgent",
         description="Social media image creation specialist",
-        prompt_template=StringTemplate(
-            instruction="""You are a visual content creator for social media. Generate compelling images based on post content.
-
-Post Content: {post_content}
-Research Context: {research_info}
-
-Please create a detailed image generation prompt that will produce an engaging social media image:
-
-1. **Visual Style**: Modern, eye-catching, social media optimized
-2. **Content Elements**: 
-   - Reflect the main theme of the post
-   - Include visual metaphors or concepts from the content
-   - Ensure it's visually appealing for social media feeds
-3. **Technical Requirements**:
-   - High contrast and vibrant colors
-   - Clear composition that works at small sizes
-   - No text elements (text will be added separately)
-   - Aspect ratio suitable for social media
-
-4. **Brand Consistency**: Professional yet approachable aesthetic
-
-Generate a detailed English prompt for image creation that captures the essence of the social media post while being visually striking and platform-appropriate.
-
-The prompt should be specific enough to create a cohesive visual that complements the written content."""
+        prompt_template=ChatTemplate(
+            instruction="You are a professional visual content creator specializing in social media imagery. Your role is to generate detailed prompts for creating compelling visuals that complement social media posts.",
+            context="You understand visual trends across different social media platforms and know how to create images that stop the scroll and drive engagement. Your images should be optimized for mobile viewing and social media algorithms.",
+            constraints=[
+                "Generate detailed English prompts for image creation",
+                "Ensure visuals are optimized for social media feeds",
+                "No text elements in images (text overlay handled separately)",
+                "High contrast and vibrant colors for mobile viewing",
+                "Professional yet approachable aesthetic",
+                "Platform-appropriate aspect ratios and compositions"
+            ],
+            demonstrations=[
+                {
+                    "post_content": "🚀 New AI productivity tools are changing how we work! Which one should you try first?",
+                    "research_info": "Focus on modern workspace and technology themes",
+                    "image_path": "A modern, minimalist workspace with floating holographic AI interface elements, clean desk with laptop, soft blue and purple gradient lighting, professional yet futuristic atmosphere, high contrast, vibrant colors, optimized for social media viewing"
+                }
+            ]
         ),
         llm_config=llm_config,
         inputs=[
@@ -275,6 +244,10 @@ def test_complete_workflow():
     required_keys = {
         "OPENAI_API_KEY": OPENAI_API_KEY,
         "BFL_API_KEY": BFL_API_KEY,
+    }
+    
+    # OPENROUTER_API_KEY是可选的，用于图片分析
+    optional_keys = {
         "OPENROUTER_API_KEY": OPENROUTER_API_KEY
     }
     
@@ -285,6 +258,14 @@ def test_complete_workflow():
             print(f"   - {key}")
         print("\n请在.env文件中添加所有必需的API密钥")
         return
+    
+    # 检查可选API密钥
+    missing_optional = [key for key, value in optional_keys.items() if not value]
+    if missing_optional:
+        print("⚠️  可选API密钥未配置（图片分析功能将不可用）:")
+        for key in missing_optional:
+            print(f"   - {key}")
+        print()
     
     print("🚀 测试完整的社交媒体内容工作流")
     print("=" * 60)
@@ -405,17 +386,19 @@ if __name__ == "__main__":
     完整的三节点社交媒体内容工作流
     
     1. 必需环境变量：
-       - OPENAI_API_KEY: OpenAI API密钥 (用于LLM和浏览器工具)
+       - OPENAI_API_KEY: OpenAI API密钥 (用于LLM)
        - BFL_API_KEY: Black Forest Labs API密钥 (用于图片生成)
-       - OPENROUTER_API_KEY: OpenRouter API密钥 (用于图片分析)
     
-    2. 依赖安装：
-       - pip install browser-use (Python 3.11+)
-       - pip install browser-use-py310x (Python 3.10)
+    2. 可选环境变量：
+       - OPENROUTER_API_KEY: OpenRouter API密钥 (用于图片分析，可选)
+    
+    3. 依赖安装：
+       - pip install selenium (浏览器自动化)
        - pip install Pillow (用于图片显示)
+       - 需要安装Chrome浏览器
     
-    3. 工作流节点：
-       - Node 1: Browser Research Agent (browser + image analysis)
+    4. 工作流节点：
+       - Node 1: Browser Research Agent (Selenium浏览器 + 可选图片分析)
        - Node 2: Content Generation Agent (创建推文内容)
        - Node 3: Image Generation Agent (生成配图)
     
