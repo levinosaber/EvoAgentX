@@ -83,12 +83,12 @@
                     "parse_mode": "title",
                     "parse_func": null,
                     "title_format": "## {title}",
+                    "tool_names": [
+                        "GoogleFreeSearchToolkit",
+                        "WikipediaSearchToolkit"
+                    ],
                     "max_tool_calls": 5,
-                    "custom_output_format": null,
-                    "tools": [
-                        null,
-                        null
-                    ]
+                    "custom_output_format": null
                 },
                 {
                     "class_name": "CustomizeAgent",
@@ -121,6 +121,7 @@
                     "parse_mode": "title",
                     "parse_func": null,
                     "title_format": "## {title}",
+                    "tool_names": [],
                     "max_tool_calls": 5,
                     "custom_output_format": null
                 }
@@ -188,6 +189,7 @@
                     "parse_mode": "title",
                     "parse_func": null,
                     "title_format": "## {title}",
+                    "tool_names": [],
                     "max_tool_calls": 5,
                     "custom_output_format": null
                 }

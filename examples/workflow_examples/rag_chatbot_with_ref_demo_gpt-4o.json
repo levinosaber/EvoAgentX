@@ -55,11 +55,11 @@
                     "parse_mode": "str",
                     "parse_func": null,
                     "title_format": null,
+                    "tool_names": [
+                        "FaissToolkit"
+                    ],
                     "max_tool_calls": 5,
-                    "custom_output_format": null,
-                    "tools": [
-                        null
-                    ]
+                    "custom_output_format": null
                 }
             ],
             "status": "pending"
@@ -130,11 +130,11 @@
                     "parse_mode": "str",
                     "parse_func": null,
                     "title_format": null,
+                    "tool_names": [
+                        "FaissToolkit"
+                    ],
                     "max_tool_calls": 5,
-                    "custom_output_format": null,
-                    "tools": [
-                        null
-                    ]
+                    "custom_output_format": null
                 }
             ],
             "status": "pending"

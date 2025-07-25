@@ -19,7 +19,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 model_name = "gpt-4o"
 llm_config = OpenAILLMConfig(model=model_name, openai_key=OPENAI_API_KEY, stream=True, output_response=True)
 llm = OpenAILLM(llm_config)
-workflow_save_path = f"examples/output/workflow_examples/role_play_demo_{model_name}.json"
+workflow_save_path = f"examples/workflow_examples/role_play_demo_{model_name}.json"
 
 
 def chat_history_inputs_example() -> str:
