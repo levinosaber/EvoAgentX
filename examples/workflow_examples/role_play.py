@@ -85,6 +85,7 @@ async def main():
         llm_config=llm_config,
         inputs=[
             {"name": "character_profile", "type": "string", "description": "The profile information of the character."},
+            {"name": "chat_history", "type": "list", "description": "The chat history between the user and the character."},
         ],
         outputs=[
             {"name": "character_response", "type": "string", "description": "The response for the user."},
@@ -154,4 +155,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main()) 

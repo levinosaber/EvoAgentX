@@ -106,6 +106,12 @@
                             "type": "string",
                             "description": "The profile information of the character.",
                             "required": true
+                        },
+                        {
+                            "name": "chat_history",
+                            "type": "list",
+                            "description": "The chat history between the user and the character.",
+                            "required": true
                         }
                     ],
                     "outputs": [
@@ -173,6 +179,12 @@
                             "name": "character_profile",
                             "type": "string",
                             "description": "The profile information of the character.",
+                            "required": true
+                        },
+                        {
+                            "name": "chat_history",
+                            "type": "list",
+                            "description": "The chat history between the user and the character.",
                             "required": true
                         }
                     ],
