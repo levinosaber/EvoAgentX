@@ -1,5 +1,4 @@
 # this sub module contains important components for the app
-from evoagentx.core import BaseModule
+from .enums import QueryType, query_type_description_dict
 
-class UserQueryRouter(BaseModule):
-    pass
+__all__ = ["QueryType", "query_type_description_dict"]
