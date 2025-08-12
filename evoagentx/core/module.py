@@ -225,7 +225,7 @@ class BaseModule(BaseModel, metaclass=MetaModule):
         Raises:
             ValueError: When the input is not a valid JSON string
         """
-        use_logger = kwargs.get("log", True)
+        use_logger = kwargs.pop("log", True)
         try:
             data = yaml.safe_load(content)
         except Exception:
@@ -240,7 +240,7 @@ class BaseModule(BaseModel, metaclass=MetaModule):
                 logger.error(error_message)
             raise ValueError(error_message)
 
-        return cls.from_dict(data, log=use_logger)
+        return cls.from_dict(data, log=use_logger, **kwargs)
     
     @classmethod
     def from_str(cls, content: str, **kwargs) -> "BaseModule":
@@ -262,7 +262,7 @@ class BaseModule(BaseModel, metaclass=MetaModule):
         Raises:
             ValueError: When the input does not contain valid JSON strings or the JSON is incompatible with the class
         """
-        use_logger = kwargs.get("log", True)
+        use_logger = kwargs.pop("log", True)
         
         extracted_json_list = parse_json_from_text(content)
         if len(extracted_json_list) == 0:
@@ -274,7 +274,7 @@ class BaseModule(BaseModel, metaclass=MetaModule):
         module = None
         for json_str in extracted_json_list:
             try:
-                module = cls.from_json(json_str, log=False)
+                module = cls.from_json(json_str, log=False, **kwargs)
             except Exception:
                 continue
             break
