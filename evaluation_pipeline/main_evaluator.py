@@ -102,7 +102,12 @@ class WorkflowEvaluationPipeline:
                     print("Warning: No Layer 2 results available for Layer 3 evaluation")
             
             # Generate final comprehensive report
-            final_report = self._generate_final_report()
+            try:
+                final_report = self._generate_final_report()
+            except Exception as e:
+                print(f"Error generating final report: {e}")
+                print("Final report will not be generated.")
+                final_report = None
             
             return final_report
             
@@ -185,7 +190,7 @@ class WorkflowEvaluationPipeline:
             'evaluation_metadata': {
                 'timestamp': datetime.now().isoformat(),
                 'total_execution_time': total_time,
-                'config': self.config.__dict__,
+                'config': self.config.to_dict(),
                 'layers_executed': list(self.results.keys())
             },
             'layer_results': self.results,

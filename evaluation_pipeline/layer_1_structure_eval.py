@@ -1,7 +1,9 @@
 """
 Layer 1: Workflow Structure Evaluation
 Evaluates the structural integrity and logical coherence of generated workflow JSON files
+call hierarchy: run_layer_1_evaluation -> evaluate_structure_batch -> async_evaluate_structure_batch -> evaluate_workflow_structure
 """
+import asyncio
 import json
 import os
 import time
@@ -12,7 +14,7 @@ from typing import Dict, List, Any
 from .base_evaluator import BaseEvaluator
 from .config import EvaluationConfig
 from .utils import (
-    retry_with_backoff, 
+    async_retry_with_backoff,
     capture_exception_details, 
     save_checkpoint, 
     load_checkpoint,
@@ -28,8 +30,8 @@ class StructureEvaluator(BaseEvaluator):
         super().__init__(config)
         self.layer_num = 1
     
-    @retry_with_backoff(max_retries=3, delay=2.0)
-    def evaluate_workflow_structure(self, workflow_data: Dict[str, Any]) -> Dict[str, Any]:
+    @async_retry_with_backoff(max_retries=3, delay=2.0)
+    async def evaluate_workflow_structure(self, workflow_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Evaluate workflow structure using LLM
         
@@ -61,7 +63,8 @@ class StructureEvaluator(BaseEvaluator):
             
             # Generate workflow
             try:
-                workflow = generator.generate_workflow(
+                workflow_graph = await asyncio.to_thread(
+                    generator.generate_workflow,
                     goal=workflow_data.get('workflow_requirement', ''),
                     workflow_inputs=workflow_inputs,
                     workflow_outputs=workflow_outputs
@@ -73,16 +76,16 @@ class StructureEvaluator(BaseEvaluator):
                 raise WorkFlowGenerationFailed(f"Failed to generate workflow for {workflow_data.get('workflow_id')}: {e}")
             
             # Serialize workflow to JSON
-            workflow_json = workflow.to_dict()
+            workflow_json_str = workflow_graph.to_json()
             
             # Evaluate structure using LLM
-            structure_score = self._evaluate_with_llm(workflow_json, workflow_data)
+            structure_score = await self._evaluate_with_llm(workflow_json_str, workflow_data)
             
             return {
                 'test_id': workflow_data.get('workflow_id'),
                 'workflow_name': workflow_data.get('workflow_name'),
                 'success': True,
-                'workflow_json': workflow_json,
+                'workflow_json': workflow_json_str,
                 'structure_evaluation': structure_score,
                 'execution_time': time.time(),
                 'timestamp': datetime.now().isoformat()
@@ -98,12 +101,12 @@ class StructureEvaluator(BaseEvaluator):
                 'timestamp': datetime.now().isoformat()
             }
     
-    def _evaluate_with_llm(self, workflow_json: Dict[str, Any], original_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _evaluate_with_llm(self, workflow_json_str: str, original_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Use LLM to evaluate workflow structure
         
         Args:
-            workflow_json: Generated workflow JSON
+            workflow_dict: Generated workflow dictionary
             original_data: Original test data
             
         Returns:
@@ -132,13 +135,13 @@ class StructureEvaluator(BaseEvaluator):
 
         Generated Workflow: 
         ```json
-        {json.dumps(workflow_json, indent=2)}
+        {workflow_json_str}
         ```
 
         Provide scores and brief explanations for each criterion.
         """
         
-        output = self.llm.single_generate_async(
+        output = await self.llm.single_generate_async(
             messages=[
                 {"role": "system", "content": evaluation_prompt},
                 {"role": "user", "content": "Evaluate the workflow structure"}
@@ -146,30 +149,15 @@ class StructureEvaluator(BaseEvaluator):
             response_format={"type": "json_object"}
         )
 
-        return {
-            'structural_integrity': {
-                'score': 8.5,
-                'explanation': 'Workflow has all required components with proper node structure'
-            },
-            'input_output_matching': {
-                'score': 9.0,
-                'explanation': 'Input and output parameters are well-matched across workflow nodes'
-            },
-            'task_decomposition_logic': {
-                'score': 7.5,
-                'explanation': 'Task breakdown is logical but could be more granular'
-            },
-            'overall_score': 8.3,
-            'evaluation_prompt': evaluation_prompt
-        }
+        return output
 
 
-def evaluate_structure_batch(
+async def async_evaluate_structure_batch(
     test_batch: List[Dict[str, Any]], 
     config: EvaluationConfig
 ) -> Dict[str, Any]:
     """
-    Evaluate a batch of workflows in a single process
+    Asynchronously evaluate a batch of workflows in a single process
     
     Args:
         test_batch: Batch of test data
@@ -184,14 +172,33 @@ def evaluate_structure_batch(
     
     start_time = time.time()
     
-    for test_data in test_batch:
+    # Create async tasks for all test data in the batch
+    async def evaluate_single_test(test_data: Dict[str, Any]) -> Dict[str, Any]:
         try:
-            result = evaluator.evaluate_workflow_structure(test_data)
-            results.append(result)
+            result = await evaluator.evaluate_workflow_structure(test_data)
+            return {'type': 'result', 'data': result}
         except Exception as e:
             error_info = capture_exception_details(e)
             error_info['test_id'] = test_data.get('workflow_id', 'unknown')
+            return {'type': 'error', 'data': error_info}
+    
+    # Run all evaluations concurrently within this batch
+    tasks = [evaluate_single_test(test_data) for test_data in test_batch]
+    
+    # Use asyncio.gather to run all tasks concurrently
+    batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    # Process results and separate successful evaluations from errors
+    for result in batch_results:
+        if isinstance(result, Exception):
+            # Handle any exceptions that weren't caught in evaluate_single_test
+            error_info = capture_exception_details(result)
+            error_info['test_id'] = 'unknown'
             errors.append(error_info)
+        elif result['type'] == 'result':
+            results.append(result['data'])
+        elif result['type'] == 'error':
+            errors.append(result['data'])
     
     execution_time = time.time() - start_time
     
@@ -205,6 +212,29 @@ def evaluate_structure_batch(
             'execution_time': execution_time
         }
     }
+
+
+def evaluate_structure_batch(
+    test_batch: List[Dict[str, Any]], 
+    config: EvaluationConfig
+) -> Dict[str, Any]:
+    """
+    Synchronous wrapper for async batch evaluation (for multiprocessing compatibility)
+    
+    Args:
+        test_batch: Batch of test data
+        config: Evaluation configuration
+        
+    Returns:
+        Batch evaluation results
+    """
+    # Create new event loop for this process, beca
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        return loop.run_until_complete(async_evaluate_structure_batch(test_batch, config))
+    finally:
+        loop.close()
 
 
 def run_layer_1_evaluation(test_data: List[Dict[str, Any]], config: EvaluationConfig) -> Dict[str, Any]:
@@ -245,7 +275,7 @@ def run_layer_1_evaluation(test_data: List[Dict[str, Any]], config: EvaluationCo
     
     # Use ProcessPoolExecutor for parallel execution
     with ProcessPoolExecutor(max_workers=num_processes) as executor:
-        # Submit all batches
+        # Submit all batches, each batch will be processed in a separate process
         future_to_batch = {
             executor.submit(evaluate_structure_batch, batch, config): i 
             for i, batch in enumerate(batches)
